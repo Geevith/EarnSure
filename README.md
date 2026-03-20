@@ -2,7 +2,7 @@
 # EarnSure
 **Your earnings. Assured !**
 
-###  [Watch our 2-Minute Project Brief Video Here](INSERT_YOUR_YOUTUBE_LINK_HERE)
+###  [Watch our 2-Minute Project Brief Video Here](https://youtu.be/nM_pFawiAp8)
 
 ---
 
