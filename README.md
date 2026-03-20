@@ -1,0 +1,2 @@
+# EarnSure
+Your earnings. Assured !
