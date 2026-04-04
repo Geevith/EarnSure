@@ -23,21 +23,7 @@ export default function Header({ onMenuClick }) {
       </div>
 
       <div className="flex items-center gap-4 sm:gap-6">
-        <div className="hidden sm:flex relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search..." 
-            className="pl-9 pr-4 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 w-48 lg:w-64"
-          />
-        </div>
-        
-        <button className="relative text-slate-400 hover:text-brand-600">
-          <Bell size={20} />
-          <span className="absolute top-0 right-0 w-2 h-2 bg-rose-500 rounded-full border border-white"></span>
-        </button>
-
-        <div className="flex items-center gap-3 border-l border-slate-200 pl-4 sm:pl-6">
+        <div className="flex items-center gap-3">
           <div className="hidden sm:block text-right">
             <div className="text-sm font-medium text-slate-700">Admin User</div>
             <div className="text-xs text-slate-500">Superadmin</div>

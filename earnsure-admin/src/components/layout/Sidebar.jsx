@@ -5,7 +5,6 @@ import { Home, Users, FileText, Activity, Zap, X } from "lucide-react";
 
 const NAV_ITEMS = [
   { label: "Dashboard", href: "/dashboard", icon: Home },
-  { label: "Riders", href: "/riders", icon: Users },
   { label: "Claims", href: "/claims", icon: FileText },
   { label: "Manual Trigger", href: "/trigger", icon: Zap },
   { label: "Actuarial Settings", href: "/actuarial", icon: Activity },
