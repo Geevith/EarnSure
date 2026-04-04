@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'widgets/segmented_toggle.dart';
 import 'widgets/status_pill.dart';

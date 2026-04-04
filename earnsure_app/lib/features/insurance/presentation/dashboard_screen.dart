@@ -149,60 +149,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     ref.read(authProvider.notifier).logout(),
               ),
 
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-                    sliver: SliverList(
-                      delegate: SliverChildListDelegate([
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                sliver: SliverList(
+                  delegate: SliverChildListDelegate([
 
-                        // ── [1] Active Policy Card (green) ───────────────
-                        _ActivePolicyCard(insurance: insurance, session: session),
-                        const SizedBox(height: 16),
+                    // ── [1] Active Policy Card (green) ───────────────
+                    _ActivePolicyCard(insurance: insurance, session: session),
+                    const SizedBox(height: 16),
 
-                        // ── [2] Stats Row ────────────────────────────────
-                        _StatsRow(insurance: insurance),
-                        const SizedBox(height: 24),
+                    // ── [2] Stats Row ────────────────────────────────
+                    _StatsRow(insurance: insurance),
+                    const SizedBox(height: 24),
 
-                        // ── [3] Trigger Buttons section ──────────────────
-                        _SectionHeader(
-                          title:    'TRIGGER EVENTS',
-                          subtitle: 'Tap to simulate a disruption claim',
-                        ),
-                        const SizedBox(height: 12),
-
-                        // ── [4] 5 Trigger Buttons ────────────────────────
-                        ..._triggers.map((t) => TriggerButtonTile(
-                              label:    t.label,
-                              subtitle: t.subtitle,
-                              icon:     t.icon,
-                              color:    t.color,
-                              bgColor:  t.bgColor,
-                              onTap: () async {
-                                await HapticUtils.heavy();
-                                ref
-                                    .read(insuranceProvider.notifier)
-                                    .simulateDisruptionAlert();
-                              },
-                            )),
-                        const SizedBox(height: 24),
-
-                        // ── [5] Anti-Spoofing strip (restyled) ───────────
-                        _LightAntiSpoofingStrip(spoof: spoof),
-                        const SizedBox(height: 16),
-
-                        // ── [6] Activation Section (logic PRESERVED) ─────
-                        _ActivationSection(
-                          insurance:  insurance,
-                          onActivate: _handleActivation,
-                        ),
-                      ]),
+                    // ── [3] Trigger Buttons section ──────────────────
+                    _SectionHeader(
+                      title:    'TRIGGER EVENTS',
+                      subtitle: 'Tap to simulate a disruption claim',
                     ),
-                  ),
-                ],
-              ),
-            ),
+                    const SizedBox(height: 12),
 
-            // ── Removed debug view for production ──────────────────────────
-          ],
+                    // ── [4] 5 Trigger Buttons ────────────────────────
+                    ..._triggers.map((t) => TriggerButtonTile(
+                          label:    t.label,
+                          subtitle: t.subtitle,
+                          icon:     t.icon,
+                          color:    t.color,
+                          bgColor:  t.bgColor,
+                          onTap: () async {
+                            await HapticUtils.heavy();
+                            ref
+                                .read(insuranceProvider.notifier)
+                                .simulateDisruptionAlert();
+                          },
+                        )),
+                    const SizedBox(height: 24),
+
+                    // ── [5] Anti-Spoofing strip (restyled) ───────────
+                    _LightAntiSpoofingStrip(spoof: spoof),
+                    const SizedBox(height: 16),
+
+                    // ── [6] Activation Section (logic PRESERVED) ─────
+                    _ActivationSection(
+                      insurance:  insurance,
+                      onActivate: _handleActivation,
+                    ),
+                  ]),
+                ),
+              ),
+            ],
+          ),
         ),
 
         // ── Sticky bottom nav ─────────────────────────────────────────────

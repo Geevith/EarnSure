@@ -5,9 +5,9 @@ import '../../../core/utils/haptic_utils.dart';
 import '../providers/insurance_provider.dart';
 
 /// Shows the glassmorphism claims bottom sheet when a disruption alert is active.
-void showClaimsModal(BuildContext context, DisruptionAlert alert) {
+Future<void> showClaimsModal(BuildContext context, DisruptionAlert alert) {
   HapticUtils.heavy();
-  showModalBottomSheet(
+  return showModalBottomSheet(
     context:       context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
