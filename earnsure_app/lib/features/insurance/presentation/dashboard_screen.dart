@@ -4,7 +4,6 @@ import '../../../core/theme/app_theme.dart';
 import '../../../core/utils/haptic_utils.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../sensors/providers/anti_spoofing_provider.dart';
-import '../../sensors/presentation/sensor_debug_view.dart';
 import '../providers/insurance_provider.dart';
 import 'claims_modal.dart';
 import 'widgets/activation_slider.dart';
@@ -13,7 +12,6 @@ import 'widgets/stats_card.dart';
 import 'widgets/status_pill.dart';
 import 'widgets/trigger_button_tile.dart';
 import 'claim_history_screen.dart';
-import 'actuarial_screen.dart';
 
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -34,12 +32,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   // ── Preserved animation controller ────────────────────────────────────────
   late final AnimationController _pageCtrl;
   late final Animation<double>   _pageAnim;
-  bool _showDebugView = false;
+
+  /// Guards against the modal stacking bug: ref.listen only fires when
+  /// activeAlert transitions null→non-null, but this bool ensures we never
+  /// open a second sheet while one is already showing (e.g. rapid taps).
+  bool _modalOpen = false;
 
   @override
   void initState() {
     super.initState();
-    // same timing as original
     _pageCtrl = AnimationController(
       vsync:    this,
       duration: const Duration(milliseconds: 700),
@@ -53,17 +54,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.dispose();
   }
 
-  // ── Preserved alert watcher — shows claims modal unchanged ─────────────────
-  void _watchAlerts(InsuranceState insurance) {
-    if (insurance.activeAlert != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && insurance.activeAlert != null) {
-          showClaimsModal(context, insurance.activeAlert!);
-        }
-      });
-    }
-  }
-
   // ── Preserved activation handler ───────────────────────────────────────────
   Future<void> _handleActivation() async {
     final payload = await ref
@@ -74,16 +64,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         .activatePolicy('882a1072b3fffff', payload);
   }
 
-  // ── Navigation helpers ─────────────────────────────────────────────────────
   void _goToClaimHistory() {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => const ClaimHistoryScreen()),
-    );
-  }
-
-  void _goToChangePlan() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ActuarialScreen()),
     );
   }
 
@@ -128,34 +111,43 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
+    // ── KEY FIX: use ref.listen instead of calling a method in build().
+    //    ref.listen fires only when the value actually changes, preventing
+    //    the addPostFrameCallback stacking that caused repeated modal opens.
+    ref.listen<InsuranceState>(insuranceProvider, (prev, next) {
+      if (next.activeAlert != null &&
+          next.activeAlert != prev?.activeAlert &&
+          !_modalOpen &&
+          mounted) {
+        _modalOpen = true;
+        showClaimsModal(context, next.activeAlert!).then((_) {
+          if (mounted) setState(() => _modalOpen = false);
+          ref.read(insuranceProvider.notifier).dismissAlert();
+        });
+      }
+    });
+
     // ── Watch providers (logic UNCHANGED) ─────────────────────────────────
     final insurance = ref.watch(insuranceProvider);
     final session   = ref.watch(authProvider).value;
     final spoof     = ref.watch(antiSpoofingProvider);
-    _watchAlerts(insurance);
 
     return Theme(
-      // Apply the light fintech theme to this screen and its descendants
       data: AppTheme.lightTheme,
       child: Scaffold(
         backgroundColor: AppTheme.ltBackground,
-        body: Stack(
-          children: [
-            FadeTransition(
-              opacity: _pageAnim,
-              child: CustomScrollView(
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  // ── Dark Header AppBar ─────────────────────────────────
-                  _FintechAppBar(
-                    session:       session,
-                    spoof:         spoof,
-                    debugActive:   _showDebugView,
-                    onDebugToggle: () =>
-                        setState(() => _showDebugView = !_showDebugView),
-                    onLogout: () =>
-                        ref.read(authProvider.notifier).logout(),
-                  ),
+        body: FadeTransition(
+          opacity: _pageAnim,
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // ── Dark Header AppBar ─────────────────────────────────
+              _FintechAppBar(
+                session:  session,
+                spoof:    spoof,
+                onLogout: () =>
+                    ref.read(authProvider.notifier).logout(),
+              ),
 
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
@@ -209,9 +201,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               ),
             ),
 
-            // ── Floating debug view (unchanged) ───────────────────────────
-            if (_showDebugView)
-              const SensorDebugView(),
+            // ── Removed debug view for production ──────────────────────────
           ],
         ),
 
@@ -222,11 +212,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               label: 'Claim History',
               icon:  Icons.history_rounded,
               onTap: _goToClaimHistory,
-            ),
-            BottomNavItem(
-              label: 'Change Plan',
-              icon:  Icons.tune_rounded,
-              onTap: _goToChangePlan,
             ),
           ],
         ),
@@ -262,15 +247,11 @@ class _FintechAppBar extends StatelessWidget {
   const _FintechAppBar({
     required this.session,
     required this.spoof,
-    required this.debugActive,
-    required this.onDebugToggle,
     required this.onLogout,
   });
 
   final RiderSession?        session;
   final AntiSpoofingState    spoof;
-  final bool                 debugActive;
-  final VoidCallback         onDebugToggle;
   final VoidCallback         onLogout;
 
   @override
@@ -338,12 +319,7 @@ class _FintechAppBar extends StatelessWidget {
 
             const SizedBox(width: 8),
 
-            // Debug toggle (logic PRESERVED)
-            _DebugToggle(active: debugActive, onTap: onDebugToggle),
-
-            const SizedBox(width: 8),
-
-            // Avatar / logout popup (logic PRESERVED)
+            // Avatar / logout popup (styled for modern fintech)
             _AvatarMenu(
               name:     session?.name ?? 'R',
               onLogout: onLogout,
@@ -359,52 +335,6 @@ class _FintechAppBar extends StatelessWidget {
   }
 }
 
-// ── Debug toggle (logic PRESERVED, new light-aware style) ────────────────────
-
-class _DebugToggle extends StatelessWidget {
-  const _DebugToggle({required this.active, required this.onTap});
-  final bool         active;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-        decoration: BoxDecoration(
-          color:        active
-              ? AppTheme.neonEmerald.withOpacity(0.15)
-              : Colors.white12,
-          borderRadius: BorderRadius.circular(8),
-          border:       Border.all(
-            color: active ? AppTheme.neonEmerald.withOpacity(0.5) : Colors.white24,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.terminal_rounded,
-              size:  11,
-              color: active ? AppTheme.neonEmerald : Colors.white54,
-            ),
-            const SizedBox(width: 3),
-            Text(
-              'DBG',
-              style: AppTheme.ltLabel.copyWith(
-                fontSize: 10,
-                color:    active ? AppTheme.neonEmerald : Colors.white54,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ── Avatar / Logout menu (logic PRESERVED, restyled) ─────────────────────────
 
 class _AvatarMenu extends StatelessWidget {
@@ -415,30 +345,38 @@ class _AvatarMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
-      color:       const Color(0xFF1A2535),
-      shape:       RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      color:       AppTheme.ltSurface,
+      elevation:   8,
+      offset:      const Offset(0, 48),
+      shape:       RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       onSelected:  (v) { if (v == 'logout') onLogout(); },
       itemBuilder: (_) => [
         PopupMenuItem(
           value: 'logout',
           child: Row(
             children: [
-              const Icon(Icons.logout_rounded, size: 15, color: AppTheme.neonRed),
-              const SizedBox(width: 8),
+              const Icon(Icons.logout_rounded, size: 18, color: AppTheme.ltDanger),
+              const SizedBox(width: 12),
               Text('Sign Out',
-                  style: AppTheme.bodyMedium.copyWith(color: AppTheme.neonRed, fontSize: 14)),
+                  style: AppTheme.ltHeadingSmall.copyWith(color: AppTheme.ltDanger, fontSize: 14)),
             ],
           ),
         ),
       ],
-      child: CircleAvatar(
-        radius: 16,
-        backgroundColor: Colors.white.withOpacity(0.15),
-        child: Text(
-          name[0].toUpperCase(),
-          style: AppTheme.ltHeadingSmall.copyWith(
-            fontSize: 13,
-            color:    Colors.white,
+      child: Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white24, width: 1.5),
+        ),
+        child: CircleAvatar(
+          radius: 16,
+          backgroundColor: Colors.white.withOpacity(0.15),
+          child: Text(
+            name[0].toUpperCase(),
+            style: AppTheme.ltHeadingSmall.copyWith(
+              fontSize: 14,
+              color:    Colors.white,
+            ),
           ),
         ),
       ),

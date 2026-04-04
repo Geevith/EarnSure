@@ -6,6 +6,7 @@ import { useToast } from "@/hooks/useToast";
 import Toast from "@/components/ui/Toast";
 import Badge from "@/components/ui/Badge";
 import Spinner from "@/components/ui/Spinner";
+import DataTable from "@/components/ui/DataTable";
 import api from "@/lib/api";
 import {
   CheckCircle, XCircle, RefreshCw,
@@ -198,7 +199,7 @@ export default function ClaimsPage() {
         </div>
       )}
 
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
+      <div className="mt-4">
         {loading && (
           <div className="flex justify-center py-16"><Spinner /></div>
         )}
@@ -207,35 +208,17 @@ export default function ClaimsPage() {
         )}
 
         {!loading && !error && (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/60">
-                  {["Claim ID", "Rider ID", "Payout", "Status", "Fraud Risk", "Created", ""].map((h) => (
-                    <th
-                      key={h}
-                      className="px-5 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
-                    >
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {claims.map((c) => (
-                  <ClaimRow key={c.id} claim={c} onReviewed={handleReviewed} />
-                ))}
-                {claims.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-14 text-center">
-                      <CheckCircle className="h-8 w-8 text-emerald-300 mx-auto mb-3" />
-                      <p className="text-sm font-medium text-slate-500">All caught up — no pending claims</p>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            <Toast message="Action successful!" />
+          <div className="relative">
+            <DataTable
+              columns={["Claim ID", "Rider ID", "Payout", "Status", "Fraud Risk", "Created", ""]}
+              data={claims}
+              keyExtractor={(c) => c.id}
+              emptyMessage="All caught up — no pending claims"
+              renderRow={(c) => (
+                <ClaimRow key={c.id} claim={c} onReviewed={handleReviewed} />
+              )}
+            />
+            <Toast toasts={[]} dismiss={() => {}} /> {/* Global toast context could be managed better, simplified here */}
           </div>
         )}
       </div>
