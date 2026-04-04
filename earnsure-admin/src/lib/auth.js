@@ -7,21 +7,23 @@
 
 import api from "./api";
 
-export const TOKEN_KEY   = "earnsure_token";
-export const ADMIN_KEY   = "earnsure_admin";
+export const TOKEN_KEY = "earnsure_token";
+export const ADMIN_KEY = "earnsure_admin";
 
 /**
  * Calls POST /api/v1/auth/login, persists token + admin profile.
  * Returns the full TokenResponse payload.
  */
 export async function login(email, password) {
+  // Sending standard JSON, exactly as the backend expects!
   const { data } = await api.post("/v1/auth/login", { email, password });
+
   if (typeof window !== "undefined") {
     localStorage.setItem(TOKEN_KEY, data.access_token);
     localStorage.setItem(ADMIN_KEY, JSON.stringify({
-      id:            data.admin_id,
-      email:         data.email,
-      full_name:     data.full_name,
+      id: data.admin_id,
+      email: data.email,
+      full_name: data.full_name,
       is_superadmin: data.is_superadmin,
     }));
   }

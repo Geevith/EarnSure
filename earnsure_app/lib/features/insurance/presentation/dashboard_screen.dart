@@ -8,7 +8,19 @@ import '../../sensors/presentation/sensor_debug_view.dart';
 import '../providers/insurance_provider.dart';
 import 'claims_modal.dart';
 import 'widgets/activation_slider.dart';
-import 'widgets/risk_score_card.dart';
+import 'widgets/custom_bottom_nav_bar.dart';
+import 'widgets/stats_card.dart';
+import 'widgets/status_pill.dart';
+import 'widgets/trigger_button_tile.dart';
+import 'claim_history_screen.dart';
+import 'actuarial_screen.dart';
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  DashboardScreen — Fintech light-mode redesign
+//  ▸ All providers & logic calls are PRESERVED unchanged.
+//  ▸ Only the UI layer (Widget tree) has been refactored.
+// ═══════════════════════════════════════════════════════════════════════════
 
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
@@ -19,6 +31,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen>
     with SingleTickerProviderStateMixin {
+  // ── Preserved animation controller ────────────────────────────────────────
   late final AnimationController _pageCtrl;
   late final Animation<double>   _pageAnim;
   bool _showDebugView = false;
@@ -26,6 +39,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   @override
   void initState() {
     super.initState();
+    // same timing as original
     _pageCtrl = AnimationController(
       vsync:    this,
       duration: const Duration(milliseconds: 700),
@@ -39,7 +53,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     super.dispose();
   }
 
-  // Watch for disruption alerts and auto-show claims modal
+  // ── Preserved alert watcher — shows claims modal unchanged ─────────────────
   void _watchAlerts(InsuranceState insurance) {
     if (insurance.activeAlert != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -50,130 +64,286 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     }
   }
 
+  // ── Preserved activation handler ───────────────────────────────────────────
   Future<void> _handleActivation() async {
-    final payload = await ref.read(antiSpoofingProvider.notifier)
+    final payload = await ref
+        .read(antiSpoofingProvider.notifier)
         .validateAndPackage();
-    await ref.read(insuranceProvider.notifier)
+    await ref
+        .read(insuranceProvider.notifier)
         .activatePolicy('882a1072b3fffff', payload);
   }
 
+  // ── Navigation helpers ─────────────────────────────────────────────────────
+  void _goToClaimHistory() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ClaimHistoryScreen()),
+    );
+  }
+
+  void _goToChangePlan() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const ActuarialScreen()),
+    );
+  }
+
+  // ── Trigger buttons config — maps each event to simulateDisruptionAlert() ──
+  List<_TriggerConfig> get _triggers => [
+        _TriggerConfig(
+          label:    'Heavy Rain',
+          subtitle: 'Rainfall > 50 mm/hr detected',
+          icon:     Icons.water_drop_rounded,
+          color:    AppTheme.ltPrimary,
+          bgColor:  AppTheme.ltPrimaryLight,
+        ),
+        _TriggerConfig(
+          label:    'Extreme Heat',
+          subtitle: 'Temperature > 42°C in zone',
+          icon:     Icons.wb_sunny_rounded,
+          color:    AppTheme.ltWarning,
+          bgColor:  AppTheme.ltWarningLight,
+        ),
+        _TriggerConfig(
+          label:    'Traffic Gridlock',
+          subtitle: 'Speed < 5 km/h for 30+ min',
+          icon:     Icons.traffic_rounded,
+          color:    AppTheme.ltDanger,
+          bgColor:  AppTheme.ltDangerLight,
+        ),
+        _TriggerConfig(
+          label:    'Platform Outage',
+          subtitle: 'App offline > 45 min',
+          icon:     Icons.cloud_off_rounded,
+          color:    AppTheme.ltPurple,
+          bgColor:  AppTheme.ltPurpleLight,
+        ),
+        _TriggerConfig(
+          label:    'Monsoon Flood',
+          subtitle: 'H3 zone flagged by IMD',
+          icon:     Icons.flood_rounded,
+          color:    AppTheme.ltTeal,
+          bgColor:  AppTheme.ltTealLight,
+        ),
+      ];
+
   @override
   Widget build(BuildContext context) {
+    // ── Watch providers (logic UNCHANGED) ─────────────────────────────────
     final insurance = ref.watch(insuranceProvider);
     final session   = ref.watch(authProvider).value;
+    final spoof     = ref.watch(antiSpoofingProvider);
     _watchAlerts(insurance);
 
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundDark,
-      body: Stack(
-        children: [
-          // Main scrollable content
-          FadeTransition(
-            opacity: _pageAnim,
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                _AppBar(
-                  session:        session,
-                  onDebugToggle:  () => setState(() => _showDebugView = !_showDebugView),
-                  debugActive:    _showDebugView,
-                  onLogout:       () => ref.read(authProvider.notifier).logout(),
-                ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
-                  sliver: SliverList(
-                    delegate: SliverChildListDelegate([
-
-                      // ── Policy status strip ──────────────────────────────
-                      _PolicyStatusBanner(insurance: insurance),
-                      const SizedBox(height: 20),
-
-                      // ── Risk Score Card ──────────────────────────────────
-                      if (insurance.riskProfile != null)
-                        RiskScoreCard(
-                          riskScore:              insurance.riskProfile!.riskScore,
-                          disruptionProbability:  insurance.riskProfile!.disruptionProbability,
-                          zoneRisk:               insurance.riskProfile!.zoneRisk,
-                          city:                   session?.city ?? 'Chennai',
-                        ),
-                      const SizedBox(height: 20),
-
-                      // ── Premium Details Card ─────────────────────────────
-                      if (insurance.riskProfile != null)
-                        _PremiumCard(profile: insurance.riskProfile!),
-                      const SizedBox(height: 24),
-
-                      // ── Activation Slider ────────────────────────────────
-                      _ActivationSection(
-                        insurance:       insurance,
-                        onActivate:      _handleActivation,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // ── Anti-Spoofing Status Strip ───────────────────────
-                      const _AntiSpoofingStrip(),
-                      const SizedBox(height: 20),
-
-                      // ── Demo Controls (Hackathon) ────────────────────────
-                      _DemoControls(insurance: insurance),
-                    ]),
+    return Theme(
+      // Apply the light fintech theme to this screen and its descendants
+      data: AppTheme.lightTheme,
+      child: Scaffold(
+        backgroundColor: AppTheme.ltBackground,
+        body: Stack(
+          children: [
+            FadeTransition(
+              opacity: _pageAnim,
+              child: CustomScrollView(
+                physics: const BouncingScrollPhysics(),
+                slivers: [
+                  // ── Dark Header AppBar ─────────────────────────────────
+                  _FintechAppBar(
+                    session:       session,
+                    spoof:         spoof,
+                    debugActive:   _showDebugView,
+                    onDebugToggle: () =>
+                        setState(() => _showDebugView = !_showDebugView),
+                    onLogout: () =>
+                        ref.read(authProvider.notifier).logout(),
                   ),
-                ),
-              ],
-            ),
-          ),
 
-          // Floating debug view (draggable)
-          if (_showDebugView)
-            const SensorDebugView(),
-        ],
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                    sliver: SliverList(
+                      delegate: SliverChildListDelegate([
+
+                        // ── [1] Active Policy Card (green) ───────────────
+                        _ActivePolicyCard(insurance: insurance, session: session),
+                        const SizedBox(height: 16),
+
+                        // ── [2] Stats Row ────────────────────────────────
+                        _StatsRow(insurance: insurance),
+                        const SizedBox(height: 24),
+
+                        // ── [3] Trigger Buttons section ──────────────────
+                        _SectionHeader(
+                          title:    'TRIGGER EVENTS',
+                          subtitle: 'Tap to simulate a disruption claim',
+                        ),
+                        const SizedBox(height: 12),
+
+                        // ── [4] 5 Trigger Buttons ────────────────────────
+                        ..._triggers.map((t) => TriggerButtonTile(
+                              label:    t.label,
+                              subtitle: t.subtitle,
+                              icon:     t.icon,
+                              color:    t.color,
+                              bgColor:  t.bgColor,
+                              onTap: () async {
+                                await HapticUtils.heavy();
+                                ref
+                                    .read(insuranceProvider.notifier)
+                                    .simulateDisruptionAlert();
+                              },
+                            )),
+                        const SizedBox(height: 24),
+
+                        // ── [5] Anti-Spoofing strip (restyled) ───────────
+                        _LightAntiSpoofingStrip(spoof: spoof),
+                        const SizedBox(height: 16),
+
+                        // ── [6] Activation Section (logic PRESERVED) ─────
+                        _ActivationSection(
+                          insurance:  insurance,
+                          onActivate: _handleActivation,
+                        ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // ── Floating debug view (unchanged) ───────────────────────────
+            if (_showDebugView)
+              const SensorDebugView(),
+          ],
+        ),
+
+        // ── Sticky bottom nav ─────────────────────────────────────────────
+        bottomNavigationBar: CustomBottomNavBar(
+          items: [
+            BottomNavItem(
+              label: 'Claim History',
+              icon:  Icons.history_rounded,
+              onTap: _goToClaimHistory,
+            ),
+            BottomNavItem(
+              label: 'Change Plan',
+              icon:  Icons.tune_rounded,
+              onTap: _goToChangePlan,
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
-// ── Custom SliverAppBar ───────────────────────────────────────────────────────
+// ─── Internal trigger config data class ─────────────────────────────────────
 
-class _AppBar extends StatelessWidget {
-  const _AppBar({
+class _TriggerConfig {
+  const _TriggerConfig({
+    required this.label,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.bgColor,
+  });
+  final String   label;
+  final String   subtitle;
+  final IconData icon;
+  final Color    color;
+  final Color    bgColor;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  SECTION WIDGETS (all private to this file — DRY via shared reusable set)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── Fintech App Bar ──────────────────────────────────────────────────────────
+
+class _FintechAppBar extends StatelessWidget {
+  const _FintechAppBar({
     required this.session,
-    required this.onDebugToggle,
+    required this.spoof,
     required this.debugActive,
+    required this.onDebugToggle,
     required this.onLogout,
   });
 
-  final RiderSession? session;
-  final VoidCallback  onDebugToggle;
-  final bool          debugActive;
-  final VoidCallback  onLogout;
+  final RiderSession?        session;
+  final AntiSpoofingState    spoof;
+  final bool                 debugActive;
+  final VoidCallback         onDebugToggle;
+  final VoidCallback         onLogout;
 
   @override
   Widget build(BuildContext context) {
+    final firstName = session?.name.split(' ').first ?? 'Rider';
+    // Map session.trustScore → TrustPill color range
+    final trust      = session?.trustScore ?? 0.0;
+    final trustColor = trust >= 8.0
+        ? AppTheme.ltSuccess
+        : trust >= 5.0
+            ? AppTheme.ltWarning
+            : AppTheme.ltDanger;
+    final trustBg = trust >= 8.0
+        ? const Color(0xFF052E16) // dark emerald
+        : trust >= 5.0
+            ? const Color(0xFF431407)
+            : const Color(0xFF450A0A);
+
     return SliverAppBar(
       pinned:          true,
-      expandedHeight:  100,
-      backgroundColor: AppTheme.backgroundDark,
+      expandedHeight:  130,
+      backgroundColor: AppTheme.ltHeaderBlack,
+      elevation:       0,
       flexibleSpace: FlexibleSpaceBar(
-        titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+        collapseMode: CollapseMode.pin,
+        titlePadding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
         title: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hey, ${session?.name.split(' ').first ?? 'Rider'} 👋',
-                  style: AppTheme.headingSmall.copyWith(fontSize: 16),
-                ),
-                Text(
-                  session?.platform ?? 'Zomato',
-                  style: AppTheme.bodySmall.copyWith(fontSize: 11),
-                ),
-              ],
+            // Greeting column
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Hello, $firstName 👋',
+                    style: AppTheme.ltHeadingSmall.copyWith(
+                      color:      Colors.white,
+                      fontSize:   16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    session?.platform ?? 'EarnSure',
+                    style: AppTheme.ltBodySmall.copyWith(
+                      color:    Colors.white54,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
-            _DebugToggle(active: debugActive, onTap: onDebugToggle),
+
+            // Trust Score pill — maps session.trustScore
+            StatusPill(
+              label:     'Trust: ${trust.toStringAsFixed(1)}',
+              bgColor:   trustBg,
+              textColor: trustColor,
+              icon:      Icons.verified_rounded,
+              iconSize:  10,
+              fontSize:  11,
+            ),
+
             const SizedBox(width: 8),
+
+            // Debug toggle (logic PRESERVED)
+            _DebugToggle(active: debugActive, onTap: onDebugToggle),
+
+            const SizedBox(width: 8),
+
+            // Avatar / logout popup (logic PRESERVED)
             _AvatarMenu(
               name:     session?.name ?? 'R',
               onLogout: onLogout,
@@ -183,11 +353,13 @@ class _AppBar extends StatelessWidget {
       ),
       bottom: PreferredSize(
         preferredSize: const Size.fromHeight(1),
-        child: Divider(height: 1, color: AppTheme.borderSubtle),
+        child: Container(height: 1, color: Colors.white12),
       ),
     );
   }
 }
+
+// ── Debug toggle (logic PRESERVED, new light-aware style) ────────────────────
 
 class _DebugToggle extends StatelessWidget {
   const _DebugToggle({required this.active, required this.onTap});
@@ -199,14 +371,15 @@ class _DebugToggle extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-          color:        (active ? AppTheme.neonEmerald : AppTheme.surfaceElevated)
-              .withOpacity(active ? 0.15 : 1.0),
+          color:        active
+              ? AppTheme.neonEmerald.withOpacity(0.15)
+              : Colors.white12,
           borderRadius: BorderRadius.circular(8),
           border:       Border.all(
-            color: active ? AppTheme.neonEmerald.withOpacity(0.5) : AppTheme.borderSubtle,
+            color: active ? AppTheme.neonEmerald.withOpacity(0.5) : Colors.white24,
           ),
         ),
         child: Row(
@@ -214,15 +387,15 @@ class _DebugToggle extends StatelessWidget {
           children: [
             Icon(
               Icons.terminal_rounded,
-              size:  13,
-              color: active ? AppTheme.neonEmerald : AppTheme.textMuted,
+              size:  11,
+              color: active ? AppTheme.neonEmerald : Colors.white54,
             ),
-            const SizedBox(width: 4),
+            const SizedBox(width: 3),
             Text(
-              'DEBUG',
-              style: AppTheme.labelMedium.copyWith(
+              'DBG',
+              style: AppTheme.ltLabel.copyWith(
                 fontSize: 10,
-                color: active ? AppTheme.neonEmerald : AppTheme.textMuted,
+                color:    active ? AppTheme.neonEmerald : Colors.white54,
               ),
             ),
           ],
@@ -231,6 +404,8 @@ class _DebugToggle extends StatelessWidget {
     );
   }
 }
+
+// ── Avatar / Logout menu (logic PRESERVED, restyled) ─────────────────────────
 
 class _AvatarMenu extends StatelessWidget {
   const _AvatarMenu({required this.name, required this.onLogout});
@@ -240,28 +415,30 @@ class _AvatarMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<String>(
-      color:        AppTheme.surfaceElevated,
-      shape:        RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      onSelected:   (v) { if (v == 'logout') onLogout(); },
-      itemBuilder:  (_) => [
+      color:       const Color(0xFF1A2535),
+      shape:       RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      onSelected:  (v) { if (v == 'logout') onLogout(); },
+      itemBuilder: (_) => [
         PopupMenuItem(
           value: 'logout',
           child: Row(
             children: [
-              const Icon(Icons.logout_rounded, size: 16, color: AppTheme.neonRed),
+              const Icon(Icons.logout_rounded, size: 15, color: AppTheme.neonRed),
               const SizedBox(width: 8),
-              Text('Sign Out', style: AppTheme.bodyMedium.copyWith(color: AppTheme.neonRed)),
+              Text('Sign Out',
+                  style: AppTheme.bodyMedium.copyWith(color: AppTheme.neonRed, fontSize: 14)),
             ],
           ),
         ),
       ],
       child: CircleAvatar(
-        radius:          18,
-        backgroundColor: AppTheme.neonEmerald.withOpacity(0.15),
+        radius: 16,
+        backgroundColor: Colors.white.withOpacity(0.15),
         child: Text(
           name[0].toUpperCase(),
-          style: AppTheme.headingSmall.copyWith(
-            fontSize: 14, color: AppTheme.neonEmerald,
+          style: AppTheme.ltHeadingSmall.copyWith(
+            fontSize: 13,
+            color:    Colors.white,
           ),
         ),
       ),
@@ -269,160 +446,329 @@ class _AvatarMenu extends StatelessWidget {
   }
 }
 
-// ── Policy Status Banner ──────────────────────────────────────────────────────
+// ── Active Policy Card ────────────────────────────────────────────────────────
 
-class _PolicyStatusBanner extends StatelessWidget {
-  const _PolicyStatusBanner({required this.insurance});
+class _ActivePolicyCard extends StatelessWidget {
+  const _ActivePolicyCard({required this.insurance, required this.session});
+  final InsuranceState insurance;
+  final RiderSession?  session;
+
+  @override
+  Widget build(BuildContext context) {
+    if (insurance.isLoading) return _LightSkeleton(height: 160, radius: 20);
+
+    final isActive = insurance.isPolicyActive;
+    final policy   = insurance.policy;
+    final daysLeft = policy != null
+        ? policy.endDate.difference(DateTime.now()).inDays
+        : 0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 500),
+      width:   double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: isActive
+          ? AppTheme.ltSuccessCard(borderRadius: 24)
+          : BoxDecoration(
+              color:        const Color(0xFF1A2535),
+              borderRadius: BorderRadius.circular(24),
+            ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color:        Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.shield_rounded, color: Colors.white, size: 18),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isActive ? 'Standard Plan' : 'No Active Policy',
+                      style: AppTheme.ltHeadingSmall.copyWith(
+                        color:    Colors.white,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      isActive
+                          ? '${session?.city ?? policy?.city ?? 'Chennai'} · ${session?.platform ?? 'Zomato'}'
+                          : 'Activate a plan to get covered',
+                      style: AppTheme.ltBodySmall.copyWith(
+                        color:    Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Active pulse dot or status pill
+              if (isActive)
+                StatusPill(
+                  label:     'ACTIVE',
+                  bgColor:   Colors.white.withOpacity(0.2),
+                  textColor: Colors.white,
+                  icon:      Icons.circle,
+                  iconSize:  6,
+                  fontSize:  10,
+                )
+              else
+                StatusPill(
+                  label:     'INACTIVE',
+                  bgColor:   Colors.white12,
+                  textColor: Colors.white54,
+                  fontSize:  10,
+                ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          // Coverage amount
+          Text(
+            'Coverage',
+            style: AppTheme.ltLabel.copyWith(color: Colors.white60, letterSpacing: 0.5),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            // maps insurance.policy.maxPayoutInr
+            policy != null ? '₹${policy.maxPayoutInr.toStringAsFixed(0)}' : '₹—',
+            style: AppTheme.ltNumberLarge.copyWith(
+              color:    Colors.white,
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // Footer row — expiry + premium
+          Row(
+            children: [
+              _PolicyChip(
+                icon:  Icons.calendar_today_rounded,
+                label: isActive ? 'Expires in $daysLeft days' : 'No expiry',
+              ),
+              const SizedBox(width: 8),
+              _PolicyChip(
+                icon:  Icons.payments_rounded,
+                // maps insurance.policy.weeklyPremiumInr
+                label: policy != null
+                    ? '₹${policy.weeklyPremiumInr.toStringAsFixed(0)}/week'
+                    : '₹—/week',
+              ),
+              if (policy?.streakDiscountApplied == true) ...[
+                const SizedBox(width: 8),
+                _PolicyChip(
+                  icon:  Icons.local_fire_department_rounded,
+                  label: '${policy!.consecutiveWeeks}wk streak',
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PolicyChip extends StatelessWidget {
+  const _PolicyChip({required this.icon, required this.label});
+  final IconData icon;
+  final String   label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color:        Colors.white.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: Colors.white70),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: AppTheme.ltLabel.copyWith(
+              color:    Colors.white,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Stats Row ─────────────────────────────────────────────────────────────────
+
+class _StatsRow extends StatelessWidget {
+  const _StatsRow({required this.insurance});
   final InsuranceState insurance;
 
   @override
   Widget build(BuildContext context) {
     if (insurance.isLoading) {
-      return _LoadingSkeleton(height: 52, radius: 12);
+      return Row(
+        children: [
+          Expanded(child: _LightSkeleton(height: 88, radius: 18)),
+          const SizedBox(width: 10),
+          Expanded(child: _LightSkeleton(height: 88, radius: 18)),
+          const SizedBox(width: 10),
+          Expanded(child: _LightSkeleton(height: 88, radius: 18)),
+        ],
+      );
     }
 
-    final isActive = insurance.isPolicyActive;
-    final color    = isActive ? AppTheme.neonEmerald : AppTheme.textMuted;
-    final daysLeft = insurance.policy != null
-        ? insurance.policy!.endDate.difference(DateTime.now()).inDays
-        : 0;
+    final policy = insurance.policy;
+    return Row(
+      children: [
+        StatsCard(
+          label:      'Premium',
+          // maps insurance.policy.weeklyPremiumInr
+          value:      policy != null
+              ? '₹${policy.weeklyPremiumInr.toStringAsFixed(0)}'
+              : '₹—',
+          valueColor: AppTheme.ltPrimary,
+          icon:       Icons.account_balance_wallet_rounded,
+          subtitle:   'per week',
+        ),
+        const SizedBox(width: 10),
+        StatsCard(
+          label:      'Protected',
+          // maps insurance.policy.maxPayoutInr
+          value:      policy != null
+              ? '₹${policy.maxPayoutInr.toStringAsFixed(0)}'
+              : '₹—',
+          valueColor: AppTheme.ltSuccess,
+          icon:       Icons.shield_rounded,
+          subtitle:   'max payout',
+        ),
+        const SizedBox(width: 10),
+        StatsCard(
+          label:  'Claims',
+          value:  '0', // TODO: hook up to GET /claims/history API
+          icon:   Icons.history_rounded,
+          subtitle: 'this month',
+        ),
+      ],
+    );
+  }
+}
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 400),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+// ── Section Header ────────────────────────────────────────────────────────────
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, this.subtitle});
+  final String  title;
+  final String? subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: AppTheme.ltLabel.copyWith(
+            color:       AppTheme.ltTextMuted,
+            fontSize:    11,
+            letterSpacing: 1.2,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(subtitle!, style: AppTheme.ltBodySmall),
+        ],
+      ],
+    );
+  }
+}
+
+// ── Light Anti-Spoofing Strip (restyled for light bg, logic UNCHANGED) ────────
+
+class _LightAntiSpoofingStrip extends StatelessWidget {
+  const _LightAntiSpoofingStrip({required this.spoof});
+  // maps antiSpoofingProvider state: trustLevel, stdDevHz, fraudScore
+  final AntiSpoofingState spoof;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color color;
+    final Color bgColor;
+    final Color borderColor;
+    switch (spoof.trustLevel) {
+      case 'TRUSTED':
+        color       = AppTheme.ltSuccess;
+        bgColor     = AppTheme.ltSuccessLight;
+        borderColor = AppTheme.ltSuccess.withOpacity(0.3);
+        break;
+      case 'MEDIUM':
+        color       = AppTheme.ltWarning;
+        bgColor     = AppTheme.ltWarningLight;
+        borderColor = AppTheme.ltWarning.withOpacity(0.3);
+        break;
+      default:
+        color       = AppTheme.ltDanger;
+        bgColor     = AppTheme.ltDangerLight;
+        borderColor = AppTheme.ltDanger.withOpacity(0.3);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color:        color.withOpacity(0.07),
-        borderRadius: BorderRadius.circular(14),
-        border:       Border.all(color: color.withOpacity(0.25)),
+        color:        bgColor,
+        borderRadius: BorderRadius.circular(18),
+        border:       Border.all(color: borderColor, width: 1),
       ),
       child: Row(
         children: [
-          Icon(
-            isActive ? Icons.shield_rounded : Icons.shield_outlined,
-            color: color,
-            size:  20,
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color:  color.withOpacity(0.15),
+              shape:  BoxShape.circle,
+            ),
+            child: Icon(Icons.verified_user_rounded, color: color, size: 16),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isActive ? 'Policy Active' : 'No Active Policy',
-                  style: AppTheme.headingSmall.copyWith(fontSize: 14, color: color),
-                ),
-                if (isActive && insurance.policy != null)
-                  Text(
-                    'Expires in $daysLeft days · ₹${insurance.policy!.weeklyPremiumInr.toStringAsFixed(0)}/week',
-                    style: AppTheme.bodySmall.copyWith(fontSize: 11),
+                  'Edge-AI Anti-Spoofing',
+                  style: AppTheme.ltHeadingSmall.copyWith(
+                    color:    color,
+                    fontSize: 13,
                   ),
+                ),
+                Text(
+                  // maps spoof.stdDevHz, spoof.trustLevel
+                  'StdDev: ${spoof.stdDevHz.toStringAsFixed(3)} Hz · ${spoof.trustLevel}',
+                  style: AppTheme.ltBodySmall,
+                ),
               ],
             ),
           ),
-          if (isActive)
-            Container(
-              width: 8, height: 8,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppTheme.neonEmerald,
-                boxShadow: AppTheme.neonGlow(AppTheme.neonEmerald, intensity: 1.2),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Premium Card ──────────────────────────────────────────────────────────────
-
-class _PremiumCard extends StatelessWidget {
-  const _PremiumCard({required this.profile});
-  final RiskProfile profile;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: AppTheme.glassCard(),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('Weekly Premium', style: AppTheme.labelMedium),
-              const Spacer(),
-              if (profile.streakDiscountApplied)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color:        AppTheme.neonEmerald.withOpacity(0.10),
-                    borderRadius: BorderRadius.circular(6),
-                    border:       Border.all(color: AppTheme.neonEmerald.withOpacity(0.25)),
-                  ),
-                  child: Text(
-                    '−${profile.streakDiscountPct.toStringAsFixed(0)}% Streak',
-                    style: AppTheme.labelMedium.copyWith(
-                      fontSize: 10, color: AppTheme.neonEmerald,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              TweenAnimationBuilder<double>(
-                tween:    Tween(begin: 0, end: profile.weeklyPremiumInr),
-                duration: const Duration(milliseconds: 800),
-                curve:    Curves.easeOutCubic,
-                builder: (_, val, __) => Text(
-                  '₹ ${val.toStringAsFixed(0)}',
-                  style: AppTheme.headingLarge.copyWith(
-                    color: AppTheme.neonEmerald,
-                    fontSize: 36,
-                    shadows: [
-                      Shadow(
-                        color:      AppTheme.neonEmerald.withOpacity(0.4),
-                        blurRadius: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4, left: 4),
-                child: Text('/ week', style: AppTheme.bodySmall),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          const Divider(),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              _PremiumStat(
-                label: 'Max Payout',
-                value: '₹450',
-                icon:  Icons.account_balance_wallet_rounded,
-                color: AppTheme.neonBlue,
-              ),
-              const SizedBox(width: 12),
-              _PremiumStat(
-                label: 'Coverage',
-                value: '2 hrs/event',
-                icon:  Icons.timer_rounded,
-                color: AppTheme.neonAmber,
-              ),
-              const SizedBox(width: 12),
-              _PremiumStat(
-                label: 'Events',
-                value: 'All types',
-                icon:  Icons.bolt_rounded,
-                color: AppTheme.neonEmerald,
-              ),
-            ],
+          // maps spoof.fraudScore
+          StatusPill(
+            label:     '${(spoof.fraudScore * 100).toStringAsFixed(0)}% risk',
+            bgColor:   color.withOpacity(0.15),
+            textColor: color,
+            fontSize:  11,
           ),
         ],
       ),
@@ -430,51 +776,13 @@ class _PremiumCard extends StatelessWidget {
   }
 }
 
-class _PremiumStat extends StatelessWidget {
-  const _PremiumStat({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  final String   label;
-  final String   value;
-  final IconData icon;
-  final Color    color;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
-        decoration: BoxDecoration(
-          color:        color.withOpacity(0.06),
-          borderRadius: BorderRadius.circular(10),
-          border:       Border.all(color: color.withOpacity(0.15)),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 16),
-            const SizedBox(height: 5),
-            Text(value, style: AppTheme.headingSmall.copyWith(fontSize: 13, color: color)),
-            const SizedBox(height: 2),
-            Text(label, style: AppTheme.bodySmall.copyWith(fontSize: 10)),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── Activation Section ────────────────────────────────────────────────────────
+// ── Activation Section (logic PRESERVED, restyled) ───────────────────────────
 
 class _ActivationSection extends StatelessWidget {
   const _ActivationSection({
     required this.insurance,
     required this.onActivate,
   });
-
   final InsuranceState insurance;
   final VoidCallback   onActivate;
 
@@ -485,24 +793,38 @@ class _ActivationSection extends StatelessWidget {
       children: [
         Row(
           children: [
-            Text('SHIFT STATUS', style: AppTheme.labelMedium),
+            Text(
+              'SHIFT STATUS',
+              style: AppTheme.ltLabel.copyWith(letterSpacing: 1.2),
+            ),
             const Spacer(),
-            Icon(Icons.my_location_rounded, size: 13, color: AppTheme.textMuted),
+            Icon(Icons.my_location_rounded,
+                size: 12, color: AppTheme.ltTextMuted),
             const SizedBox(width: 4),
-            Text('Chennai · H3-882a…', style: AppTheme.bodySmall.copyWith(fontSize: 11)),
+            Text(
+              'Chennai · H3-882a…',
+              style: AppTheme.ltBodySmall.copyWith(fontSize: 11),
+            ),
           ],
         ),
         const SizedBox(height: 12),
-        ActivationSlider(
-          isActive:  insurance.isPolicyActive,
-          isLoading: insurance.isLoading,
-          onActivate: onActivate,
+
+        // ActivationSlider: LOGIC PRESERVED — only wrapped in a light-bg container
+        Container(
+          padding:    const EdgeInsets.all(16),
+          decoration: AppTheme.ltCard(borderRadius: 18),
+          child: ActivationSlider(
+            isActive:   insurance.isPolicyActive,
+            isLoading:  insurance.isLoading,
+            onActivate: onActivate,
+          ),
         ),
+
         if (insurance.error != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           Text(
             insurance.error!,
-            style: AppTheme.bodySmall.copyWith(color: AppTheme.neonRed, fontSize: 11),
+            style: AppTheme.ltBodySmall.copyWith(color: AppTheme.ltDanger),
           ),
         ],
       ],
@@ -510,135 +832,18 @@ class _ActivationSection extends StatelessWidget {
   }
 }
 
-// ── Anti-Spoofing Strip ───────────────────────────────────────────────────────
+// ── Light-mode Loading Skeleton ───────────────────────────────────────────────
 
-class _AntiSpoofingStrip extends ConsumerWidget {
-  const _AntiSpoofingStrip();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final spoof     = ref.watch(antiSpoofingProvider);
-    final riskColor = switch (spoof.trustLevel) {
-      'TRUSTED'    => AppTheme.neonEmerald,
-      'MEDIUM'     => AppTheme.neonAmber,
-      _            => AppTheme.neonRed,
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color:        riskColor.withOpacity(0.06),
-        borderRadius: BorderRadius.circular(14),
-        border:       Border.all(color: riskColor.withOpacity(0.2)),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.verified_user_rounded, color: riskColor, size: 18),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Edge-AI Anti-Spoofing',
-                  style: AppTheme.headingSmall.copyWith(fontSize: 13, color: riskColor),
-                ),
-                Text(
-                  'StdDev: ${spoof.stdDevHz.toStringAsFixed(3)} Hz · ${spoof.trustLevel}',
-                  style: AppTheme.bodySmall.copyWith(fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color:        riskColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-              border:       Border.all(color: riskColor.withOpacity(0.3)),
-            ),
-            child: Text(
-              '${(spoof.fraudScore * 100).toStringAsFixed(0)}% risk',
-              style: AppTheme.monoBold.copyWith(fontSize: 11, color: riskColor),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ── Demo Controls (Hackathon helper) ─────────────────────────────────────────
-
-class _DemoControls extends ConsumerWidget {
-  const _DemoControls({required this.insurance});
-  final InsuranceState insurance;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'HACKATHON DEMO',
-          style: AppTheme.labelMedium.copyWith(color: AppTheme.neonAmber),
-        ),
-        const SizedBox(height: 10),
-        GestureDetector(
-          onTap: () async {
-            await HapticUtils.heavy();
-            ref.read(insuranceProvider.notifier).simulateDisruptionAlert();
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-            decoration: BoxDecoration(
-              color:        AppTheme.neonAmber.withOpacity(0.06),
-              borderRadius: BorderRadius.circular(14),
-              border:       Border.all(color: AppTheme.neonAmber.withOpacity(0.3)),
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.bolt_rounded, color: AppTheme.neonAmber, size: 18),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Simulate Monsoon Alert',
-                      style: AppTheme.headingSmall.copyWith(
-                        fontSize: 14, color: AppTheme.neonAmber,
-                      ),
-                    ),
-                    Text(
-                      'Triggers claims modal with ₹450 payout',
-                      style: AppTheme.bodySmall.copyWith(fontSize: 11),
-                    ),
-                  ],
-                ),
-                const Spacer(),
-                const Icon(Icons.arrow_forward_ios_rounded,
-                    size: 14, color: AppTheme.neonAmber),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── Shared Loading Skeleton ───────────────────────────────────────────────────
-
-class _LoadingSkeleton extends StatefulWidget {
-  const _LoadingSkeleton({required this.height, required this.radius});
+class _LightSkeleton extends StatefulWidget {
+  const _LightSkeleton({required this.height, required this.radius});
   final double height;
   final double radius;
 
   @override
-  State<_LoadingSkeleton> createState() => _LoadingSkeletonState();
+  State<_LightSkeleton> createState() => _LightSkeletonState();
 }
 
-class _LoadingSkeletonState extends State<_LoadingSkeleton>
+class _LightSkeletonState extends State<_LightSkeleton>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
 
@@ -647,7 +852,7 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton>
     super.initState();
     _ctrl = AnimationController(
       vsync:    this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
   }
 
@@ -666,8 +871,8 @@ class _LoadingSkeletonState extends State<_LoadingSkeleton>
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(widget.radius),
           color: Color.lerp(
-            AppTheme.surfaceCard,
-            AppTheme.surfaceElevated,
+            const Color(0xFFE2E8F0),
+            const Color(0xFFF1F5F9),
             _ctrl.value,
           ),
         ),

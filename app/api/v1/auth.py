@@ -67,7 +67,7 @@ async def login(
 
     # Update last login timestamp
     admin.last_login_at = datetime.now(timezone.utc)
-
+    await db.commit()
     token = create_access_token(
         subject=str(admin.id),
         role="admin",
@@ -124,6 +124,7 @@ async def register(
     )
     db.add(admin)
     await db.flush()
+    await db.commit()
     await db.refresh(admin)
 
     logger.info("Admin registered: %s (id=%s)", admin.email, admin.id)
