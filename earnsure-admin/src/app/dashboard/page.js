@@ -11,10 +11,31 @@ import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer,
 } from "recharts";
-import StatCard from "@/components/ui/StatCard";
-import DataTable from "@/components/ui/DataTable";
 
-// Old KpiCard removed in favor of imported StatCard
+// ---------------------------------------------------------------------------
+// KPI Card
+// ---------------------------------------------------------------------------
+function KpiCard({ label, value, sub, icon: Icon, accent }) {
+  const accents = {
+    blue:    "bg-blue-50 text-blue-600",
+    emerald: "bg-emerald-50 text-emerald-600",
+    amber:   "bg-amber-50 text-amber-600",
+    red:     "bg-rose-50 text-rose-600",
+    violet:  "bg-violet-50 text-violet-600",
+  };
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 flex items-start gap-4 hover:shadow-md transition-shadow">
+      <div className={`rounded-xl p-2.5 ${accents[accent] || accents.blue}`}>
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</p>
+        <p className="text-2xl font-bold text-slate-900 mt-1">{value ?? "—"}</p>
+        {sub && <p className="text-xs text-slate-400 mt-1">{sub}</p>}
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Loss-ratio coloring
@@ -45,28 +66,60 @@ function ZoneTable() {
         </div>
         <button
           onClick={refetch}
-          className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 hover:bg-brand-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-brand-100"
+          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-600 transition"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
-      <DataTable 
-        columns={["H3 Zone", "City", "Active Policies", "Claims (7d)", "Payout (7d)", "Loss Ratio", "Status"]}
-        data={zones}
-        keyExtractor={z => z.h3_index}
-        emptyMessage="No zone data available"
-        renderRow={(z) => (
-          <>
-            <td className="px-6 py-4 font-mono text-xs text-slate-500">{z.h3_index.slice(0, 12)}…</td>
-            <td className="px-6 py-4 font-medium text-slate-800">{z.city}</td>
-            <td className="px-6 py-4 text-slate-700">{z.active_policies.toLocaleString()}</td>
-            <td className="px-6 py-4 text-slate-700">{z.total_claims_this_week.toLocaleString()}</td>
-            <td className="px-6 py-4 text-slate-700">₹{Number(z.total_payout_this_week_inr).toLocaleString("en-IN")}</td>
-            <td className="px-6 py-4"><Badge label={`${(z.loss_ratio * 100).toFixed(1)}%`} variant={lossRatioVariant(z.loss_ratio)} /></td>
-            <td className="px-6 py-4"><Badge label={z.active_disruption ? "Disruption" : "Normal"} variant={z.active_disruption ? "danger" : "success"} /></td>
-          </>
-        )}
-      />
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 bg-slate-50">
+              {["H3 Zone", "City", "Active Policies", "Claims (7d)",
+                "Payout (7d)", "Loss Ratio", "Status"].map((h) => (
+                <th
+                  key={h}
+                  className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider whitespace-nowrap"
+                >
+                  {h}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {zones.map((z) => (
+              <tr key={z.h3_index} className="hover:bg-slate-50/70 transition-colors">
+                <td className="px-5 py-3.5 font-mono text-xs text-slate-500">{z.h3_index.slice(0, 12)}…</td>
+                <td className="px-5 py-3.5 font-medium text-slate-800">{z.city}</td>
+                <td className="px-5 py-3.5 text-slate-700">{z.active_policies.toLocaleString()}</td>
+                <td className="px-5 py-3.5 text-slate-700">{z.total_claims_this_week.toLocaleString()}</td>
+                <td className="px-5 py-3.5 text-slate-700">
+                  ₹{Number(z.total_payout_this_week_inr).toLocaleString("en-IN")}
+                </td>
+                <td className="px-5 py-3.5">
+                  <Badge
+                    label={`${(z.loss_ratio * 100).toFixed(1)}%`}
+                    variant={lossRatioVariant(z.loss_ratio)}
+                  />
+                </td>
+                <td className="px-5 py-3.5">
+                  <Badge
+                    label={z.active_disruption ? "Disruption" : "Normal"}
+                    variant={z.active_disruption ? "danger" : "success"}
+                  />
+                </td>
+              </tr>
+            ))}
+            {zones.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-5 py-12 text-center text-sm text-slate-400">
+                  No zone data available
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -109,9 +162,9 @@ export default function DashboardPage() {
         <div className="flex justify-center py-16"><Spinner size="lg" /></div>
       )}
       {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-5 py-4 mb-6">
-          <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="flex items-center gap-2 bg-rose-50 border border-rose-200 rounded-xl px-5 py-4 mb-6">
+          <AlertTriangle className="h-4 w-4 text-rose-500 shrink-0" />
+          <p className="text-sm text-rose-700">{error}</p>
         </div>
       )}
 
@@ -119,21 +172,21 @@ export default function DashboardPage() {
         <>
           {/* KPI Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-            <StatCard label="Active Policies"    value={fmt(health.total_active_policies)}  icon={FileText}   accent="blue"    sub="Currently live"           />
-            <StatCard label="Total Riders"       value={fmt(health.total_riders)}            icon={Users}      accent="violet"  sub="Registered accounts"     />
-            <StatCard label="Disruption Zones"   value={health.active_disruption_zones}     icon={AlertTriangle} accent="amber" sub="Zones with active events" />
-            <StatCard label="Automation Rate"    value={fmtPct(health.automation_rate_pct)} icon={Activity}   accent="emerald" sub="Auto-approved claims"    />
+            <KpiCard label="Active Policies"    value={fmt(health.total_active_policies)}  icon={FileText}   accent="blue"    sub="Currently live"           />
+            <KpiCard label="Total Riders"       value={fmt(health.total_riders)}            icon={Users}      accent="violet"  sub="Registered accounts"     />
+            <KpiCard label="Disruption Zones"   value={health.active_disruption_zones}     icon={AlertTriangle} accent="amber" sub="Zones with active events" />
+            <KpiCard label="Automation Rate"    value={fmtPct(health.automation_rate_pct)} icon={Activity}   accent="emerald" sub="Auto-approved claims"    />
           </div>
 
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <StatCard label="Weekly Revenue"   value={fmtInr(health.weekly_premium_revenue_inr)} icon={DollarSign}  accent="emerald" sub="Premiums collected"     />
-            <StatCard label="Weekly Payouts"   value={fmtInr(health.weekly_payout_total_inr)}    icon={TrendingUp}  accent="red"     sub="Disbursed to riders"   />
-            <StatCard label="Loss Ratio"       value={fmtPct(health.overall_loss_ratio * 100)}   icon={TrendingUp}  accent="amber"   sub="Target < 40%"          />
-            <StatCard label="Payouts Queued"   value={health.payouts_queued}                      icon={Zap}         accent="blue"    sub="Pending settlement"    />
+            <KpiCard label="Weekly Revenue"   value={fmtInr(health.weekly_premium_revenue_inr)} icon={DollarSign}  accent="emerald" sub="Premiums collected"     />
+            <KpiCard label="Weekly Payouts"   value={fmtInr(health.weekly_payout_total_inr)}    icon={TrendingUp}  accent="red"     sub="Disbursed to riders"   />
+            <KpiCard label="Loss Ratio"       value={fmtPct(health.overall_loss_ratio * 100)}   icon={TrendingUp}  accent="amber"   sub="Target < 40%"          />
+            <KpiCard label="Payouts Queued"   value={health.payouts_queued}                      icon={Zap}         accent="blue"    sub="Pending settlement"    />
           </div>
 
           {/* Revenue vs Payout chart */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 mb-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 mb-6">
             <h2 className="text-base font-semibold text-slate-900 mb-1">Weekly Financial Summary</h2>
             <p className="text-xs text-slate-400 mb-5">Premium revenue vs. total payout disbursement</p>
             <ResponsiveContainer width="100%" height={180}>
